@@ -2,5 +2,4 @@ streamlit
 llama_index
 python-dotenv
 llama-index-llms-groq
-newspaper3k
-requests
+trafilatura

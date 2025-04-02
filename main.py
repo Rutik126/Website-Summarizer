@@ -1,40 +1,31 @@
 import streamlit as st
-import requests
-from newspaper import Article
+import trafilatura
 from llama_index.llms.groq import Groq
 from dotenv import load_dotenv
-from llama_index.core.prompts import PromptTemplate
 import os
 
 # Load environment variables
 load_dotenv()
 api_key = os.getenv("GROQ_API_KEY")
 
-# Initialize LLM
-def initialize_llm(model_type):
-    return Groq(model=model_type, api_key=api_key)
+# Default LLM model
+DEFAULT_MODEL = "llama3-70b-8192"
 
-# Function to scrape webpage text
+# Initialize LLM
+def initialize_llm():
+    return Groq(model=DEFAULT_MODEL, api_key=api_key)
+
+# Function to scrape webpage content
 def extract_text_from_url(url):
-    try:
-        article = Article(url)
-        article.download()
-        article.parse()
-        return article.text
-    except Exception as e:
-        return f"Error fetching the article: {e}"
+    downloaded = trafilatura.fetch_url(url)
+    if downloaded:
+        return trafilatura.extract(downloaded)
+    return "Error extracting content from the URL."
 
 # Summarization function
-def summarize_text(llm, text, summary_type):
-    prompts = {
-        "Long Summary": "Summarize the following webpage in detail:\n{text}",
-        "Short Summary": "Summarize the following webpage in 100 words:\n{text}",
-        "Creative Summary": "Provide a creative summary of the following webpage:\n{text}",
-        "Bullet Point Summary": "Summarize the following webpage in 3 bullet points:\n{text}"
-    }
-    text = text[:5000]  # Limit input
-    formatted_prompt = prompts[summary_type].format(text=text)
-    response = llm.complete(formatted_prompt)
+def summarize_text(llm, text):
+    prompt = f"Summarize the following webpage content in a clear and concise manner:\n\n{text}"
+    response = llm.complete(prompt)
     return response.text
 
 # Question Answering function
@@ -43,22 +34,16 @@ def ask_question(llm, text, question):
     response = llm.complete(prompt)
     return response.text
 
-# Streamlit App
-st.title("🌐 AI-Powered Webpage Summarizer & Q&A 🤖")
+# Streamlit UI
+st.title("🌐 AI Webpage Summarizer & Q&A 🤖")
 
-# URL input
+# URL Input
 url = st.text_input("Enter Website URL:")
 
-# Summary Type Selection
-summary_type = st.selectbox("Select Summary Type", ("Long Summary", "Short Summary", "Creative Summary", "Bullet Point Summary"))
-
-# Model Type Selection
-model_type = st.selectbox("Select Model Type", ("qwen-2.5-32b", "llama3-70b-8192", "deepseek-r1-distill-qwen-32b"))
-
 # Initialize model
-llm = initialize_llm(model_type)
+llm = initialize_llm()
 
-# Fetch & summarize webpage
+# Summarize Button
 if st.button("Summarize Webpage"):
     if url:
         with st.spinner("Extracting and summarizing content... ⏳"):
@@ -66,15 +51,15 @@ if st.button("Summarize Webpage"):
             if extracted_text.startswith("Error"):
                 st.error(extracted_text)
             else:
-                summary = summarize_text(llm, extracted_text, summary_type)
-                st.subheader(f"📜 {summary_type} using {model_type}")
+                summary = summarize_text(llm, extracted_text)
+                st.subheader(f"📜 Webpage Summary")
                 st.write(summary)
-                st.session_state["webpage_text"] = extracted_text  # Store extracted text for Q&A
+                st.session_state["webpage_text"] = extracted_text  # Store text for Q&A
     else:
         st.warning("⚠️ Please enter a valid URL.")
 
 # Q&A Section
-st.markdown("## ❓ Ask Questions")
+st.markdown("## ❓ Ask a Question")
 question = st.text_input("Ask a question based on the webpage:")
 
 if st.button("Get Answer"):
@@ -89,4 +74,3 @@ if st.button("Get Answer"):
 # Footer
 st.markdown("---")
 st.markdown("🚀 Made by **Rutik Kumbhar**")
-
